@@ -37,7 +37,7 @@ public class InAppBrowserDialog extends Dialog {
         this.context = context;
     }
 
-    public void setInAppBroswer(InAppBrowser browser) {
+    public void setInAppBrowser(InAppBrowser browser) {
         this.inAppBrowser = browser;
     }
 
