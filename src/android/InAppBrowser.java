@@ -114,6 +114,7 @@ public class InAppBrowser extends CordovaPlugin {
     private static final String HIDE_URL = "hideurlbar";
     private static final String FOOTER = "footer";
     private static final String FOOTER_COLOR = "footercolor";
+    private static final String ALLOW_MIXED_CONTENT_MODE = "allowmixedcontentmode";
     private static final String BEFORELOAD = "beforeload";
     private static final String FULLSCREEN = "fullscreen";
 
@@ -147,6 +148,7 @@ public class InAppBrowser extends CordovaPlugin {
     private boolean fullscreen = true;
     private String[] allowedSchemes;
     private InAppBrowserClient currentClient;
+    private boolean allowMixedContentMode = false;
 
     /**
      * Executes the request and returns PluginResult.
@@ -703,6 +705,10 @@ public class InAppBrowser extends CordovaPlugin {
             if (footerColorSet != null) {
                 footerColor = footerColorSet;
             }
+            String allowMixedContentModeSet = features.get(ALLOW_MIXED_CONTENT_MODE);
+            if (allowMixedContentModeSet != null) {
+                allowMixedContentMode = allowMixedContentModeSet.equals("yes") ? true : false;
+            }
             if (features.get(BEFORELOAD) != null) {
                 beforeload = features.get(BEFORELOAD);
             }
@@ -971,6 +977,11 @@ public class InAppBrowser extends CordovaPlugin {
                 }
                 if (appendUserAgent != null) {
                     settings.setUserAgentString(settings.getUserAgentString() + appendUserAgent);
+                }
+
+                // Allow mixed content mode?
+                if (allowMixedContentMode) {
+                    settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
                 }
 
                 //Toggle whether this is enabled or not!
