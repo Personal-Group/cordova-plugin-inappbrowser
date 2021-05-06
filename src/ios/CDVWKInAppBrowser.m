@@ -532,7 +532,7 @@ static CDVWKInAppBrowser* instance = nil;
     }
     
     if(errorMessage != nil){
-        NSLog(errorMessage);
+        NSLog(@"errorMessage: %@", errorMessage);
         CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
                                                       messageAsDictionary:@{@"type":@"loaderror", @"url":[url absoluteString], @"code": @"-1", @"message": errorMessage}];
         [pluginResult setKeepCallback:[NSNumber numberWithBool:YES]];
@@ -541,6 +541,11 @@ static CDVWKInAppBrowser* instance = nil;
     
     //if is an app store link, let the system handle it, otherwise it fails to load it
     if ([[ url scheme] isEqualToString:@"itms-appss"] || [[ url scheme] isEqualToString:@"itms-apps"]) {
+        [theWebView stopLoading];
+        [self openInSystem:url];
+        shouldStart = NO;
+    } else if ([url.scheme.lowercaseString isEqualToString:@"tel"] || [url.scheme.lowercaseString isEqualToString:@"mailto"]) {
+        // Could be changed to call openInSystem if scheme is not http or https
         [theWebView stopLoading];
         [self openInSystem:url];
         shouldStart = NO;
@@ -702,84 +707,95 @@ static CDVWKInAppBrowser* instance = nil;
 CGFloat lastReducedStatusBarHeight = 0.0;
 BOOL isExiting = FALSE;
 
-- (id)initWithBrowserOptions: (CDVInAppBrowserOptions*) browserOptions andSettings:(NSDictionary *)settings
+- (id)initWithBrowserOptions: (CDVInAppBrowserOptions*) browserOptions andSettings:(NSDictionary*) settings configuration:(WKWebViewConfiguration *)config
 {
     self = [super init];
     if (self != nil) {
         _browserOptions = browserOptions;
         _settings = settings;
-        self.webViewUIDelegate = [[CDVWKInAppBrowserUIDelegate alloc] initWithTitle:[[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleDisplayName"]];
-        [self.webViewUIDelegate setViewController:self];
         
-        [self createViews];
+        [self createViews:config];
     }
     
     return self;
+}
+
+- (id)initWithBrowserOptions: (CDVInAppBrowserOptions*) browserOptions andSettings:(NSDictionary *)settings 
+{
+    return [self initWithBrowserOptions:browserOptions andSettings:settings configuration:nil];
 }
 
 -(void)dealloc {
     //NSLog(@"dealloc");
 }
 
-- (void)createViews
+- (void)createViews:(WKWebViewConfiguration *)webViewConfiguration
 {
     // We create the views in code for primarily for ease of upgrades and not requiring an external .xib to be included
     
     CGRect webViewBounds = self.view.bounds;
-    BOOL toolbarIsAtBottom = ![_browserOptions.toolbarposition isEqualToString:kInAppBrowserToolbarBarPositionTop];
-    webViewBounds.size.height -= _browserOptions.location ? FOOTER_HEIGHT : TOOLBAR_HEIGHT;
+    BOOL toolbarIsAtBottom = ![self.browserOptions.toolbarposition isEqualToString:kInAppBrowserToolbarBarPositionTop];
+    webViewBounds.size.height -= self.browserOptions.location ? FOOTER_HEIGHT : TOOLBAR_HEIGHT;
     WKUserContentController* userContentController = [[WKUserContentController alloc] init];
     
-    WKWebViewConfiguration* configuration = [[WKWebViewConfiguration alloc] init];
-    
-    NSString *userAgent = configuration.applicationNameForUserAgent;
-    if (
-        [self settingForKey:@"OverrideUserAgent"] == nil &&
-        [self settingForKey:@"AppendUserAgent"] != nil
-        ) {
-        userAgent = [NSString stringWithFormat:@"%@ %@", userAgent, [self settingForKey:@"AppendUserAgent"]];
-    }
-    configuration.applicationNameForUserAgent = userAgent;
-    configuration.userContentController = userContentController;
-#if __has_include(<Cordova/CDVWebViewProcessPoolFactory.h>)
-    configuration.processPool = [[CDVWebViewProcessPoolFactory sharedFactory] sharedProcessPool];
-#elif __has_include("CDVWKProcessPoolFactory.h")
-    configuration.processPool = [[CDVWKProcessPoolFactory sharedFactory] sharedProcessPool];
-#endif
-    [configuration.userContentController addScriptMessageHandler:self name:IAB_BRIDGE_NAME];
-    
-    //WKWebView options
-    configuration.allowsInlineMediaPlayback = _browserOptions.allowinlinemediaplayback;
-    if (IsAtLeastiOSVersion(@"10.0")) {
-        configuration.ignoresViewportScaleLimits = _browserOptions.enableviewportscale;
-        if(_browserOptions.mediaplaybackrequiresuseraction == YES){
-            configuration.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeAll;
-        }else{
-            configuration.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
+    if (!webViewConfiguration) {
+        webViewConfiguration = [[WKWebViewConfiguration alloc] init];
+
+        NSString *userAgent = webViewConfiguration.applicationNameForUserAgent;
+        if (
+            [self settingForKey:@"OverrideUserAgent"] == nil &&
+            [self settingForKey:@"AppendUserAgent"] != nil
+            ) {
+            userAgent = [NSString stringWithFormat:@"%@ %@", userAgent, [self settingForKey:@"AppendUserAgent"]];
         }
-    }else{ // iOS 9
-        configuration.mediaPlaybackRequiresUserAction = _browserOptions.mediaplaybackrequiresuseraction;
-    }
-    
-    if (@available(iOS 13.0, *)) {
-        NSString *contentMode = [self settingForKey:@"PreferredContentMode"];
-        if ([contentMode isEqual: @"mobile"]) {
-            configuration.defaultWebpagePreferences.preferredContentMode = WKContentModeMobile;
-        } else if ([contentMode  isEqual: @"desktop"]) {
-            configuration.defaultWebpagePreferences.preferredContentMode = WKContentModeDesktop;
+        webViewConfiguration.applicationNameForUserAgent = userAgent;
+        webViewConfiguration.userContentController = userContentController;
+        
+#if __has_include(<Cordova/CDVWebViewProcessPoolFactory.h>)
+        webViewConfiguration.processPool = [[CDVWebViewProcessPoolFactory sharedFactory] sharedProcessPool];
+#elif __has_include("CDVWKProcessPoolFactory.h")
+        configuration.processPool = [[CDVWKProcessPoolFactory sharedFactory] sharedProcessPool];
+#endif
+        [webViewConfiguration.userContentController addScriptMessageHandler:self name:IAB_BRIDGE_NAME];
+        
+        //WKWebView options
+        webViewConfiguration.allowsInlineMediaPlayback = _browserOptions.allowinlinemediaplayback;
+        webViewConfiguration.ignoresViewportScaleLimits = _browserOptions.enableviewportscale;
+        
+        if (_browserOptions.mediaplaybackrequiresuseraction == YES) {
+            webViewConfiguration.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeAll;
+        } else {
+            webViewConfiguration.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
         }
         
+        if (@available(iOS 13.0, *)) {
+            NSString *contentMode = [self settingForKey:@"PreferredContentMode"];
+            if ([contentMode isEqual: @"mobile"]) {
+                webViewConfiguration.defaultWebpagePreferences.preferredContentMode = WKContentModeMobile;
+            } else if ([contentMode  isEqual: @"desktop"]) {
+                webViewConfiguration.defaultWebpagePreferences.preferredContentMode = WKContentModeDesktop;
+            }
+        }
+        
+        //WKWebView options
+        webViewConfiguration.allowsInlineMediaPlayback = self.browserOptions.allowinlinemediaplayback;
+        webViewConfiguration.ignoresViewportScaleLimits = self.browserOptions.enableviewportscale;
+        
+        if (self.browserOptions.mediaplaybackrequiresuseraction == YES) {
+            webViewConfiguration.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeAll;
+        } else {
+            webViewConfiguration.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
+        }
     }
     
-
-    self.webView = [[WKWebView alloc] initWithFrame:webViewBounds configuration:configuration];
+    self.webView = [[WKWebView alloc] initWithFrame:webViewBounds configuration:webViewConfiguration];
     
     [self.view addSubview:self.webView];
     [self.view sendSubviewToBack:self.webView];
     
     
     self.webView.navigationDelegate = self;
-    self.webView.UIDelegate = self.webViewUIDelegate;
+    self.webView.UIDelegate = self;
     self.webView.backgroundColor = [UIColor whiteColor];
     if ([self settingForKey:@"OverrideUserAgent"] != nil) {
         self.webView.customUserAgent = [self settingForKey:@"OverrideUserAgent"];
@@ -797,9 +813,9 @@ BOOL isExiting = FALSE;
     self.webView.allowsBackForwardNavigationGestures = NO;
     
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= 110000
-   if (@available(iOS 11.0, *)) {
-       [self.webView.scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
-   }
+    if (@available(iOS 11.0, *)) {
+        [self.webView.scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
+    }
 #endif
     
     self.spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
@@ -809,20 +825,25 @@ BOOL isExiting = FALSE;
     self.spinner.clearsContextBeforeDrawing = NO;
     self.spinner.clipsToBounds = NO;
     self.spinner.contentMode = UIViewContentModeScaleToFill;
-    self.spinner.frame = CGRectMake(CGRectGetMidX(self.webView.frame), CGRectGetMidY(self.webView.frame), 20.0, 20.0);
+    //     self.spinner.frame = CGRectMake(CGRectGetMidX(self.webView.frame), CGRectGetMidY(self.webView.frame), 20.0, 20.0);
     self.spinner.hidden = NO;
     self.spinner.hidesWhenStopped = YES;
     self.spinner.multipleTouchEnabled = NO;
     self.spinner.opaque = NO;
     self.spinner.userInteractionEnabled = NO;
+    if (_browserOptions.navigationbuttoncolor != nil) { // Set spinner color if user sets it in options
+        self.spinner.color = [self colorFromHexString:_browserOptions.navigationbuttoncolor];
+    }
     [self.spinner stopAnimating];
     
     self.closeButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(close)];
+    self.closeButton.title = self.browserOptions.closebuttoncaption ? self.browserOptions.closebuttoncaption : @"Close";
+    self.closeButton.tintColor = self.browserOptions.closebuttoncolor ? [self colorFromHexString:self.browserOptions.closebuttoncolor] : [UIColor blackColor];
     self.closeButton.enabled = YES;
     
-    UIBarButtonItem* flexibleSpaceButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
+    UIBarButtonItem *flexibleSpaceButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
     
-    UIBarButtonItem* fixedSpaceButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFixedSpace target:nil action:nil];
+    UIBarButtonItem *fixedSpaceButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFixedSpace target:nil action:nil];
     fixedSpaceButton.width = 20;
     
     float toolbarY = toolbarIsAtBottom ? self.view.bounds.size.height - TOOLBAR_HEIGHT : 0.0;
@@ -834,7 +855,7 @@ BOOL isExiting = FALSE;
     self.toolbar.autoresizingMask = toolbarIsAtBottom ? (UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin) : UIViewAutoresizingFlexibleWidth;
     self.toolbar.barStyle = UIBarStyleBlackOpaque;
     self.toolbar.clearsContextBeforeDrawing = NO;
-    self.toolbar.clipsToBounds = NO;
+    self.toolbar.clipsToBounds = YES;
     self.toolbar.contentMode = UIViewContentModeScaleToFill;
     self.toolbar.hidden = NO;
     self.toolbar.multipleTouchEnabled = NO;
@@ -879,33 +900,33 @@ BOOL isExiting = FALSE;
     self.addressLabel.textColor = [UIColor colorWithWhite:1.000 alpha:1.000];
     self.addressLabel.userInteractionEnabled = NO;
     
-    NSString* frontArrowString = NSLocalizedString(@"►", nil); // create arrow from Unicode char
-    self.forwardButton = [[UIBarButtonItem alloc] initWithTitle:frontArrowString style:UIBarButtonItemStylePlain target:self action:@selector(goForward:)];
+    self.forwardButton = [[UIBarButtonItem alloc] initWithImage:[ImageUtilities imageOfForwardButton] style:UIBarButtonItemStylePlain target:self action:@selector(goForward:)];
     self.forwardButton.enabled = YES;
     self.forwardButton.imageInsets = UIEdgeInsetsZero;
     if (_browserOptions.navigationbuttoncolor != nil) { // Set button color if user sets it in options
-      self.forwardButton.tintColor = [self colorFromHexString:_browserOptions.navigationbuttoncolor];
+        self.forwardButton.tintColor = [self colorFromHexString:_browserOptions.navigationbuttoncolor];
     }
-
-    NSString* backArrowString = NSLocalizedString(@"◄", nil); // create arrow from Unicode char
-    self.backButton = [[UIBarButtonItem alloc] initWithTitle:backArrowString style:UIBarButtonItemStylePlain target:self action:@selector(goBack:)];
+    
+    self.backButton = [[UIBarButtonItem alloc] initWithImage:[ImageUtilities imageOfBackButton] style:UIBarButtonItemStylePlain target:self action:@selector(goBack:)];
     self.backButton.enabled = YES;
     self.backButton.imageInsets = UIEdgeInsetsZero;
     if (_browserOptions.navigationbuttoncolor != nil) { // Set button color if user sets it in options
-      self.backButton.tintColor = [self colorFromHexString:_browserOptions.navigationbuttoncolor];
+        self.backButton.tintColor = [self colorFromHexString:_browserOptions.navigationbuttoncolor];
     }
-
+    
+    UIBarButtonItem *spinnerBarButton = [[UIBarButtonItem alloc] initWithCustomView:self.spinner];
+    
     // Filter out Navigation Buttons if user requests so
     if (_browserOptions.hidenavigationbuttons) {
         if (_browserOptions.lefttoright) {
-            [self.toolbar setItems:@[flexibleSpaceButton, self.closeButton]];
+            [self.toolbar setItems:@[spinnerBarButton, self.closeButton]];
         } else {
-            [self.toolbar setItems:@[self.closeButton, flexibleSpaceButton]];
+            [self.toolbar setItems:@[self.closeButton, spinnerBarButton]];
         }
     } else if (_browserOptions.lefttoright) {
-        [self.toolbar setItems:@[self.backButton, fixedSpaceButton, self.forwardButton, flexibleSpaceButton, self.closeButton]];
+        [self.toolbar setItems:@[self.backButton, fixedSpaceButton, self.forwardButton, flexibleSpaceButton, spinnerBarButton, self.closeButton]];
     } else {
-        [self.toolbar setItems:@[self.closeButton, flexibleSpaceButton, self.backButton, fixedSpaceButton, self.forwardButton]];
+        [self.toolbar setItems:@[self.closeButton, flexibleSpaceButton, spinnerBarButton, self.backButton, fixedSpaceButton, self.forwardButton]];
     }
     
     self.view.backgroundColor = [UIColor clearColor];
@@ -1201,7 +1222,11 @@ BOOL isExiting = FALSE;
         self.currentURL = url;
     }
     
-    [self.navigationDelegate webView:theWebView decidePolicyForNavigationAction:navigationAction decisionHandler:decisionHandler];
+    if (self.navigationDelegate) {
+        [self.navigationDelegate webView:theWebView decidePolicyForNavigationAction:navigationAction decisionHandler:decisionHandler];
+    } else {
+        decisionHandler(WKNavigationActionPolicyAllow);
+    }
 }
 
 - (void)webView:(WKWebView *)theWebView didFinishNavigation:(WKNavigation *)navigation
@@ -1239,6 +1264,103 @@ BOOL isExiting = FALSE;
 - (void)webView:(WKWebView*)theWebView didFailProvisionalNavigation:(null_unspecified WKNavigation *)navigation withError:(nonnull NSError *)error
 {
     [self webView:theWebView failedNavigation:@"didFailProvisionalNavigation" withError:error];
+}
+
+#pragma mark WKUIDelegate
+
+- (void)webView:(WKWebView*)webView runJavaScriptAlertPanelWithMessage:(NSString*)message initiatedByFrame:(WKFrameInfo*)frame completionHandler:(void (^)(void))completionHandler
+{
+    UIAlertController* alert = [UIAlertController alertControllerWithTitle:self.title
+                                                                   message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+
+    UIAlertAction* ok = [UIAlertAction actionWithTitle:NSLocalizedString(@"OK", @"OK")
+                                                 style:UIAlertActionStyleDefault
+                                               handler:^(UIAlertAction* action)
+        {
+            completionHandler();
+            [alert dismissViewControllerAnimated:YES completion:nil];
+        }];
+
+    [alert addAction:ok];
+
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)webView:(WKWebView*)webView runJavaScriptConfirmPanelWithMessage:(NSString*)message initiatedByFrame:(WKFrameInfo*)frame completionHandler:(void (^)(BOOL result))completionHandler
+{
+    UIAlertController* alert = [UIAlertController alertControllerWithTitle:self.title
+                                                                   message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+
+    UIAlertAction* ok = [UIAlertAction actionWithTitle:NSLocalizedString(@"OK", @"OK")
+                                                 style:UIAlertActionStyleDefault
+                                               handler:^(UIAlertAction* action)
+        {
+            completionHandler(YES);
+            [alert dismissViewControllerAnimated:YES completion:nil];
+        }];
+
+    [alert addAction:ok];
+
+    UIAlertAction* cancel = [UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", @"Cancel")
+                                                     style:UIAlertActionStyleDefault
+                                                   handler:^(UIAlertAction* action)
+        {
+            completionHandler(NO);
+            [alert dismissViewControllerAnimated:YES completion:nil];
+        }];
+    [alert addAction:cancel];
+
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)webView:(WKWebView*)webView runJavaScriptTextInputPanelWithPrompt:(NSString*)prompt defaultText:(NSString*)defaultText initiatedByFrame:(WKFrameInfo*)frame completionHandler:(void (^)(NSString* result))completionHandler
+{
+    UIAlertController* alert = [UIAlertController alertControllerWithTitle:self.title
+                                                                   message:prompt
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+
+    UIAlertAction* ok = [UIAlertAction actionWithTitle:NSLocalizedString(@"OK", @"OK")
+                                                 style:UIAlertActionStyleDefault
+                                               handler:^(UIAlertAction* action)
+        {
+            completionHandler(((UITextField*)alert.textFields[0]).text);
+            [alert dismissViewControllerAnimated:YES completion:nil];
+        }];
+
+    [alert addAction:ok];
+
+    UIAlertAction* cancel = [UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", @"Cancel")
+                                                     style:UIAlertActionStyleDefault
+                                                   handler:^(UIAlertAction* action)
+        {
+            completionHandler(nil);
+            [alert dismissViewControllerAnimated:YES completion:nil];
+        }];
+    [alert addAction:cancel];
+
+    [alert addTextFieldWithConfigurationHandler:^(UITextField* textField) {
+        textField.text = defaultText;
+    }];
+
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (WKWebView *)webView:(WKWebView *)webView createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)navigationAction windowFeatures:(WKWindowFeatures *)windowFeatures
+{
+    if (!navigationAction.targetFrame.isMainFrame) {
+        CDVWKInAppBrowserViewController *popupViewController = [[CDVWKInAppBrowserViewController alloc] initWithBrowserOptions:self.browserOptions andSettings:self.settings configuration:configuration];
+        popupViewController.modalPresentationStyle = UIModalPresentationOverFullScreen;
+        
+        [self presentViewController:popupViewController animated:YES completion:nil];
+        
+        return popupViewController.webView;
+    } else {
+        [webView loadRequest:navigationAction.request];
+    }
+    
+    return nil;
 }
 
 #pragma mark WKScriptMessageHandler delegate
@@ -1289,3 +1411,80 @@ BOOL isExiting = FALSE;
 }
 
 @end //CDVWKInAppBrowserViewController
+
+#pragma mark -
+
+@implementation ImageUtilities
+
+#pragma mark Cache
+
+static UIImage* _imageOfBackButton = nil;
+static UIImage* _imageOfForwardButton = nil;
+
+#pragma mark Drawing Methods
+
++ (void)drawBackButton
+{
+
+    //// Bezier Drawing
+    UIBezierPath* bezierPath = [UIBezierPath bezierPath];
+    [bezierPath moveToPoint: CGPointMake(16.5, 19.5)];
+    [bezierPath addLineToPoint: CGPointMake(8.5, 11.5)];
+    [bezierPath addLineToPoint: CGPointMake(16.5, 3.5)];
+    [UIColor.blackColor setStroke];
+    bezierPath.lineWidth = 2;
+    [bezierPath stroke];
+}
+
++ (void)drawForwardButton
+{
+    //// General Declarations
+    CGContextRef context = UIGraphicsGetCurrentContext();
+
+    //// Bezier Drawing
+    CGContextSaveGState(context);
+    CGContextTranslateCTM(context, 12.5, 11.5);
+    CGContextRotateCTM(context, -180 * M_PI / 180);
+
+    UIBezierPath* bezierPath = [UIBezierPath bezierPath];
+    [bezierPath moveToPoint: CGPointMake(4, 8)];
+    [bezierPath addLineToPoint: CGPointMake(-4, -0)];
+    [bezierPath addLineToPoint: CGPointMake(4, -8)];
+    [UIColor.blackColor setStroke];
+    bezierPath.lineWidth = 2;
+    [bezierPath stroke];
+
+    CGContextRestoreGState(context);
+}
+
+#pragma mark Generated Images
+
++ (UIImage *)imageOfBackButton
+{
+    if (_imageOfBackButton)
+        return _imageOfBackButton;
+
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(24, 24), NO, 0.0f);
+    [ImageUtilities drawBackButton];
+
+    _imageOfBackButton = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+
+    return _imageOfBackButton;
+}
+
++ (UIImage *)imageOfForwardButton
+{
+    if (_imageOfForwardButton)
+        return _imageOfForwardButton;
+
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(24, 24), NO, 0.0f);
+    [ImageUtilities drawForwardButton];
+
+    _imageOfForwardButton = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+
+    return _imageOfForwardButton;
+}
+
+@end
