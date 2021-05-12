@@ -20,24 +20,17 @@ package org.apache.cordova.inappbrowser;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
-import android.app.AlertDialog;
-import android.content.ComponentName;
 import android.content.Context;
 import android.app.Activity;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.Parcelable;
 import android.os.Message;
 import android.provider.Browser;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.Color;
 import android.net.http.SslError;
 import android.net.Uri;
@@ -47,7 +40,6 @@ import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
-import android.view.LayoutInflater;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
@@ -55,7 +47,6 @@ import android.view.WindowManager.LayoutParams;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.CookieManager;
-import android.webkit.CookieSyncManager;
 import android.webkit.HttpAuthHandler;
 import android.webkit.JavascriptInterface;
 import android.webkit.SslErrorHandler;
@@ -139,9 +130,7 @@ public class InAppBrowser extends CordovaPlugin {
     private InAppBrowserDialog popupDialog;
     private WebView popupWebView;
     private EditText popupEditText;
-    private CallbackContext popupCallbackContext;
-    private InAppBrowserClient popupClient;
-    
+
     private boolean showLocationBar = true;
     private boolean showZoomControls = true;
     private boolean openWindowHidden = false;
@@ -566,14 +555,12 @@ public class InAppBrowser extends CordovaPlugin {
                                         popupWebView.destroy();
                                         popupDialog = null;
                                         popupWebView = null;
-//                                                            popupClient = null;
                                     }
                                 } else {
                                     popupDialog.dismiss();
                                     popupWebView.destroy();
                                     popupDialog = null;
                                     popupWebView = null;
-//                                                        popupClient = null;
                                 }
                             }
                         });
@@ -1162,28 +1149,6 @@ public class InAppBrowser extends CordovaPlugin {
                         });
                         toolbar.addView(closePopupButton);
 
-                        // Footer
-//                        RelativeLayout footer = new RelativeLayout(cordova.getActivity());
-//                        int _footerColor;
-//                        if(footerColor != ""){
-//                            _footerColor = Color.parseColor(footerColor);
-//                        }else{
-//                            _footerColor = android.graphics.Color.LTGRAY;
-//                        }
-//                        footer.setBackgroundColor(_footerColor);
-//                        RelativeLayout.LayoutParams footerLayout = new RelativeLayout.LayoutParams(LayoutParams.MATCH_PARENT, this.dpToPixels(44));
-//                        footerLayout.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM, RelativeLayout.TRUE);
-//                        footer.setLayoutParams(footerLayout);
-//                        if (closeButtonCaption != "") footer.setPadding(this.dpToPixels(8), this.dpToPixels(8), this.dpToPixels(8), this.dpToPixels(8));
-//                        footer.setHorizontalGravity(Gravity.LEFT);
-//                        footer.setVerticalGravity(Gravity.BOTTOM);
-
-//                        View footerClose = createCloseButton(7);
-//                        footer.addView(closePopupButton);
-
-//                        popupClient = new InAppBrowserClient(thatWebView, popupEditText, beforeload);
-//                        popupWebView.setWebViewClient(popupClient);
-
                         WebSettings settings = popupWebView.getSettings();
                         settings.setJavaScriptEnabled(true);
                         settings.setJavaScriptCanOpenWindowsAutomatically(true);
@@ -1192,24 +1157,8 @@ public class InAppBrowser extends CordovaPlugin {
                         settings.setDisplayZoomControls(false);
                         settings.setPluginState(android.webkit.WebSettings.PluginState.ON);
 
-                        // Add postMessage interface
-//                        class JsObject {
-//                            @JavascriptInterface
-//                            public void postMessage(String data) {
-//                                try {
-//                                    JSONObject obj = new JSONObject();
-//                                    obj.put("type", MESSAGE_EVENT);
-//                                    obj.put("data", new JSONObject(data));
-//                                    sendUpdate(obj, true);
-//                                } catch (JSONException ex) {
-//                                    LOG.e(LOG_TAG, "data object passed to postMessage has caused a JSON error.");
-//                                }
-//                            }
-//                        }
-
                         if(android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR1) {
                             settings.setMediaPlaybackRequiresUserGesture(mediaPlaybackRequiresUserGesture);
-//                            popupWebView.addJavascriptInterface(new JsObject(), "cordova_iab");
                         }
 
                         // Allow mixed content mode?
@@ -1232,7 +1181,6 @@ public class InAppBrowser extends CordovaPlugin {
                             CookieManager.getInstance().setAcceptThirdPartyCookies(popupWebView,true);
                         }
 
-//                        popupWebView.loadUrl(url);
                         popupWebView.setId(Integer.valueOf(5));
                         popupWebView.getSettings().setLoadWithOverviewMode(true);
                         popupWebView.getSettings().setUseWideViewPort(useWideViewPort);
