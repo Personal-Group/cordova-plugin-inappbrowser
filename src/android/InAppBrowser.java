@@ -1187,7 +1187,7 @@ public class InAppBrowser extends CordovaPlugin {
                         WebSettings settings = popupWebView.getSettings();
                         settings.setJavaScriptEnabled(true);
                         settings.setJavaScriptCanOpenWindowsAutomatically(true);
-                        settings.setSupportMultipleWindows(true);
+                        settings.setSupportMultipleWindows(false);
                         settings.setBuiltInZoomControls(showZoomControls);
                         settings.setDisplayZoomControls(false);
                         settings.setPluginState(android.webkit.WebSettings.PluginState.ON);
@@ -1275,9 +1275,41 @@ public class InAppBrowser extends CordovaPlugin {
                         popupWebView.setWebViewClient(new WebViewClient() {
                             @Override
                             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                                view.loadUrl(url);
+                                final Uri uri = Uri.parse(url);
+                                return handleUri(uri);
+                            }
 
-                                return true;
+                            @TargetApi(Build.VERSION_CODES.N)
+                            @Override
+                            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                                final Uri uri = request.getUrl();
+                                return handleUri(uri);
+                            }
+
+                            private boolean handleUri(final Uri uri) {
+                                final String fullURL = uri.toString();
+
+                                if (fullURL.startsWith(WebView.SCHEME_TEL)) {
+                                    try {
+                                        Intent intent = new Intent(Intent.ACTION_DIAL);
+                                        intent.setData(Uri.parse(fullURL));
+                                        cordova.getActivity().startActivity(intent);
+                                        return true;
+                                    } catch (android.content.ActivityNotFoundException e) {
+                                        LOG.e(LOG_TAG, "Error dialing " + fullURL + ": " + e.toString());
+                                    }
+                                } else if (fullURL.startsWith("geo:") || fullURL.startsWith(WebView.SCHEME_MAILTO) || fullURL.startsWith("market:") || fullURL.startsWith("intent:")) {
+                                    try {
+                                        Intent intent = new Intent(Intent.ACTION_VIEW);
+                                        intent.setData(Uri.parse(fullURL));
+                                        cordova.getActivity().startActivity(intent);
+                                        return true;
+                                    } catch (android.content.ActivityNotFoundException e) {
+                                        LOG.e(LOG_TAG, "Error with " + fullURL + ": " + e.toString());
+                                    }
+                                }
+
+                                return false;
                             }
                         });
 
