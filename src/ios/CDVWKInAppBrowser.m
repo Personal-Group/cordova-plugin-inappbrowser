@@ -503,7 +503,7 @@ static CDVWKInAppBrowser* instance = nil;
     NSURL* url = navigationAction.request.URL;
     NSURL* mainDocumentURL = navigationAction.request.mainDocumentURL;
     BOOL isTopLevelNavigation = [url isEqual:mainDocumentURL];
-    BOOL shouldStart = YES;
+    BOOL shouldAllowNavigation = YES;
     BOOL useBeforeLoad = NO;
     NSString* httpMethod = navigationAction.request.HTTPMethod;
     NSString* errorMessage = nil;
@@ -544,12 +544,12 @@ static CDVWKInAppBrowser* instance = nil;
     if ([[ url scheme] isEqualToString:@"itms-appss"] || [[ url scheme] isEqualToString:@"itms-apps"]) {
         [theWebView stopLoading];
         [self openInSystem:url];
-        shouldStart = NO;
+        shouldAllowNavigation = NO;
     } else if ([url.scheme.lowercaseString isEqualToString:@"tel"] || [url.scheme.lowercaseString isEqualToString:@"mailto"]) {
         // Could be changed to call openInSystem if scheme is not http or https
         [theWebView stopLoading];
         [self openInSystem:url];
-        shouldStart = NO;
+        shouldAllowNavigation = NO;
     }
     else if ((self.callbackId != nil) && isTopLevelNavigation) {
         // Send a loadstart event for each top-level navigation (includes redirects).
@@ -564,7 +564,7 @@ static CDVWKInAppBrowser* instance = nil;
         _waitForBeforeload = YES;
     }
     
-    if(shouldStart){
+    if(shouldAllowNavigation){
 /*
         // Fix GH-417 & GH-424: Handle non-default target attribute
         // Based on https://stackoverflow.com/a/25713070/777265
