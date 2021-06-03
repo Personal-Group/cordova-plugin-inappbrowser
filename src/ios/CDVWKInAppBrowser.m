@@ -564,15 +564,19 @@ static CDVWKInAppBrowser* instance = nil;
     }
     
     if(shouldStart){
+/*
         // Fix GH-417 & GH-424: Handle non-default target attribute
         // Based on https://stackoverflow.com/a/25713070/777265
+        decisionHandler(WKNavigationActionPolicyAllow);
         if (!navigationAction.targetFrame){
             [theWebView loadRequest:navigationAction.request];
             decisionHandler(WKNavigationActionPolicyCancel);
         }else{
             decisionHandler(WKNavigationActionPolicyAllow);
-        }
-    }else{
+        }*/
+        // Allow navigation — new Windows are being handled in -[CDVWKInAppBrowserViewController webView:createWebViewWithConfiguration:forNavigationAction:windowFeatures:] which the above prevents
+        decisionHandler(WKNavigationActionPolicyAllow);
+    } else {
         decisionHandler(WKNavigationActionPolicyCancel);
     }
 }
@@ -1351,6 +1355,7 @@ BOOL isExiting = FALSE;
 {
     if (!navigationAction.targetFrame.isMainFrame) {
         CDVWKInAppBrowserViewController *popupViewController = [[CDVWKInAppBrowserViewController alloc] initWithBrowserOptions:self.browserOptions andSettings:self.settings configuration:configuration];
+        popupViewController.navigationDelegate = self.navigationDelegate;
         popupViewController.modalPresentationStyle = UIModalPresentationOverFullScreen;
         
         [self presentViewController:popupViewController animated:YES completion:nil];
