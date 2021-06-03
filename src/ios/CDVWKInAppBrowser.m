@@ -924,9 +924,9 @@ BOOL isExiting = FALSE;
     // Filter out Navigation Buttons if user requests so
     if (_browserOptions.hidenavigationbuttons) {
         if (_browserOptions.lefttoright) {
-            [self.toolbar setItems:@[spinnerBarButton, self.closeButton]];
+            [self.toolbar setItems:@[spinnerBarButton, flexibleSpaceButton, self.closeButton]];
         } else {
-            [self.toolbar setItems:@[self.closeButton, spinnerBarButton]];
+            [self.toolbar setItems:@[self.closeButton, flexibleSpaceButton, spinnerBarButton]];
         }
     } else if (_browserOptions.lefttoright) {
         [self.toolbar setItems:@[self.backButton, fixedSpaceButton, self.forwardButton, flexibleSpaceButton, spinnerBarButton, self.closeButton]];
