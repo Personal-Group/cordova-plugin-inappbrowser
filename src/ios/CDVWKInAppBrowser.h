@@ -63,6 +63,7 @@
 @property (nonatomic, strong) IBOutlet UIToolbar* toolbar;
 @property (nonatomic, strong) CDVInAppBrowserOptions *browserOptions;
 @property (nonatomic, copy) NSDictionary *settings;
+@property (nonatomic, assign) BOOL isRootBrowserViewController;
 
 @property (nonatomic, weak) id <CDVScreenOrientationDelegate> orientationDelegate;
 @property (nonatomic, weak) CDVWKInAppBrowser* navigationDelegate;

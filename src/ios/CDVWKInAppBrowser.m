@@ -202,6 +202,7 @@ static CDVWKInAppBrowser* instance = nil;
     if (self.inAppBrowserViewController == nil) {
         self.inAppBrowserViewController = [[CDVWKInAppBrowserViewController alloc] initWithBrowserOptions: browserOptions andSettings:self.commandDelegate.settings];
         self.inAppBrowserViewController.navigationDelegate = self;
+        self.inAppBrowserViewController.isRootBrowserViewController = YES;
         
         if ([self.viewController conformsToProtocol:@protocol(CDVScreenOrientationDelegate)]) {
             self.inAppBrowserViewController.orientationDelegate = (UIViewController <CDVScreenOrientationDelegate>*)self.viewController;
@@ -1085,7 +1086,7 @@ BOOL isExiting = FALSE;
 - (void)viewDidDisappear:(BOOL)animated
 {
     [super viewDidDisappear:animated];
-    if (isExiting && (self.navigationDelegate != nil) && [self.navigationDelegate respondsToSelector:@selector(browserExit)]) {
+    if (isExiting && (self.navigationDelegate != nil) && [self.navigationDelegate respondsToSelector:@selector(browserExit)] && self.isRootBrowserViewController) {
         [self.navigationDelegate browserExit];
         isExiting = FALSE;
     }
