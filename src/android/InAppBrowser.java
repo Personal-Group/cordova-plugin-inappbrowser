@@ -132,7 +132,7 @@ public class InAppBrowser extends CordovaPlugin {
     private EditText popupEditText;
 
     private boolean showLocationBar = true;
-    private boolean showZoomControls = true;
+    private boolean enableZoom = true;
     private boolean openWindowHidden = false;
     private boolean clearAllCache = false;
     private boolean clearSessionCache = false;
@@ -690,7 +690,7 @@ public class InAppBrowser extends CordovaPlugin {
     public String showWebPage(final String url, HashMap<String, String> features) {
         // Determine if we should hide the location bar.
         showLocationBar = true;
-        showZoomControls = true;
+        enableZoom = true;
         openWindowHidden = false;
         mediaPlaybackRequiresUserGesture = false;
 
@@ -707,7 +707,7 @@ public class InAppBrowser extends CordovaPlugin {
             }
             String zoom = features.get(ZOOM);
             if (zoom != null) {
-                showZoomControls = zoom.equals("yes") ? true : false;
+                enableZoom = zoom.equals("yes") ? true : false;
             }
             String hidden = features.get(HIDDEN);
             if (hidden != null) {
@@ -1153,7 +1153,7 @@ public class InAppBrowser extends CordovaPlugin {
                         settings.setJavaScriptEnabled(true);
                         settings.setJavaScriptCanOpenWindowsAutomatically(true);
                         settings.setSupportMultipleWindows(false);
-                        settings.setBuiltInZoomControls(showZoomControls);
+                        settings.setBuiltInZoomControls(enableZoom);
                         settings.setDisplayZoomControls(false);
                         settings.setPluginState(android.webkit.WebSettings.PluginState.ON);
 
@@ -1293,7 +1293,7 @@ public class InAppBrowser extends CordovaPlugin {
                 WebSettings settings = inAppWebView.getSettings();
                 settings.setJavaScriptEnabled(true);
                 settings.setJavaScriptCanOpenWindowsAutomatically(true);
-                settings.setBuiltInZoomControls(showZoomControls);
+                settings.setBuiltInZoomControls(enableZoom);
                 settings.setDisplayZoomControls(false);
                 settings.setPluginState(android.webkit.WebSettings.PluginState.ON);
 
