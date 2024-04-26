@@ -673,7 +673,7 @@ BOOL isExiting = FALSE;
     webViewBounds.size.height -= self.browserOptions.location ? FOOTER_HEIGHT : TOOLBAR_HEIGHT;
     WKUserContentController* userContentController = [[WKUserContentController alloc] init];
     
-    WKWebViewConfiguration *configuration = webViewConfiguration
+    WKWebViewConfiguration *configuration = webViewConfiguration;
     
     if (!webViewConfiguration) {
         webViewConfiguration = [[WKWebViewConfiguration alloc] init];
