@@ -22,6 +22,8 @@
 #import <Cordova/CDVWebViewProcessPoolFactory.h>
 #import <Cordova/CDVPluginResult.h>
 
+@import PassKit;
+
 #define    kInAppBrowserTargetSelf @"_self"
 #define    kInAppBrowserTargetSystem @"_system"
 #define    kInAppBrowserTargetBlank @"_blank"
@@ -304,6 +306,29 @@ static CDVWKInAppBrowser* instance = nil;
     }];
 }
 
+- (void)addPassWithURL:(NSURL *)url {
+    NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:url];
+    NSURLSessionDataTask *task = [NSURLSession.sharedSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSLog(@"data: %@", [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
+            NSError *passKitError;
+            PKPass *pass = [[PKPass alloc] initWithData:data error:&passKitError];
+            if (passKitError) {
+                NSLog(@"Error: %@", passKitError.localizedDescription);
+                [self openInSystem:url]; // Fallback to opening in Safari in case the system can recover the pass or show an error
+                //[[UIApplication sharedApplication] openURL:url options:@{} completionHandler:^(BOOL success) {}];
+            } else if ([PKPassLibrary isPassLibraryAvailable]) {
+                PKAddPassesViewController *vc = [[PKAddPassesViewController alloc] initWithPass:pass];
+                [self.inAppBrowserViewController presentViewController:vc animated:YES completion: nil];
+            } else {
+                [self openInSystem:url]; // Fallback to opening in Safari in case the system can recover the pass or show an error
+                //[[UIApplication sharedApplication] openURL:url options:@{} completionHandler:^(BOOL success) {}];
+            }
+        });
+    }];
+    [task resume];
+}
+
 - (void)loadAfterBeforeload:(CDVInvokedUrlCommand*)command
 {
     NSString* urlStr = [command argumentAtIndex:0];
@@ -479,7 +504,10 @@ static CDVWKInAppBrowser* instance = nil;
     }
     
     //if is an app store, tel, sms, mailto or geo link, let the system handle it, otherwise it fails to load it
-    NSArray * allowedSchemes = @[@"itms-appss", @"itms-apps", @"tel", @"sms", @"mailto", @"geo"];
+    NSArray *allowedSchemes = @[@"itms-appss", @"itms-apps", @"tel", @"sms", @"mailto", @"geo"];
+    NSArray *passExtensions = @[@"pkpass", @"pkpasses"];
+    NSString *fileExtension = [url.lastPathComponent.pathExtension lowercaseString];
+    
     if ([allowedSchemes containsObject:[url scheme]]) {
         [theWebView stopLoading];
         [self openInSystem:url];
@@ -489,8 +517,9 @@ static CDVWKInAppBrowser* instance = nil;
         [theWebView stopLoading];
         [self openInSystem:url];
         shouldAllowNavigation = NO;
-    }
-    else if ((self.callbackId != nil) && isTopLevelNavigation) {
+    } else if ([passExtensions containsObject:fileExtension] || [url.absoluteString hasSuffix:@".pkpass"] || [url.absoluteString hasSuffix:@".pkpasses"]) {
+    	[self addPassWithURL:url];
+    } else if ((self.callbackId != nil) && isTopLevelNavigation) {
         // Send a loadstart event for each top-level navigation (includes redirects).
         CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
                                                       messageAsDictionary:@{@"type":@"loadstart", @"url":[url absoluteString]}];
