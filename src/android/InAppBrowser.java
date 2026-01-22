@@ -65,6 +65,10 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import com.google.android.gms.pay.Pay;
+import com.google.android.gms.pay.PayApiAvailabilityStatus;
+import com.google.android.gms.pay.PayClient;
+
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.Config;
 import org.apache.cordova.CordovaArgs;
@@ -1574,6 +1578,8 @@ public class InAppBrowser extends CordovaPlugin {
                     LOG.e(LOG_TAG, "Error sending loaderror for " + url + ": " + e.toString());
                 }
             }
+            
+           LOG.e(LOG_TAG, "Open URL: " + url);
 
             if (url.startsWith(WebView.SCHEME_TEL)) {
                 try {
@@ -1584,7 +1590,7 @@ public class InAppBrowser extends CordovaPlugin {
                 } catch (android.content.ActivityNotFoundException e) {
                     LOG.e(LOG_TAG, "Error dialing " + url + ": " + e.toString());
                 }
-            } else if (url.startsWith("geo:") || url.startsWith(WebView.SCHEME_MAILTO) || url.startsWith("market:") || url.startsWith("intent:")) {
+            } else if (url.startsWith("geo:") || url.startsWith(WebView.SCHEME_MAILTO) || url.startsWith("market:") || url.startsWith("intent:") || url.endsWith(".pkpass")) {
                 try {
                     Intent intent = new Intent(Intent.ACTION_VIEW);
                     intent.setData(Uri.parse(url));
@@ -1593,6 +1599,43 @@ public class InAppBrowser extends CordovaPlugin {
                 } catch (android.content.ActivityNotFoundException e) {
                     LOG.e(LOG_TAG, "Error with " + url + ": " + e.toString());
                 }
+            } else if (url.startsWith("https://pay.google.com/gp/v/save/")) {
+				override = true;
+
+				String[] pathComponents = url.split("/");
+				String jwtString = pathComponents[pathComponents.length-1];
+            	
+            	Activity activity = cordova.getActivity();
+				PayClient walletClient = Pay.getClient(activity);
+
+		        walletClient.getPayApiAvailabilityStatus(PayClient.RequestType.SAVE_PASSES)
+        	        .addOnSuccessListener(status -> {
+            	        if (status == PayApiAvailabilityStatus.AVAILABLE) {
+            	            int ADD_TO_GOOGLE_WALLET_REQUEST_CODE = 1000;
+                	        walletClient.savePassesJwt(jwtString, activity, ADD_TO_GOOGLE_WALLET_REQUEST_CODE);
+                    	} else {
+							// open in default browser
+							try {
+                 				Intent intent = new Intent(Intent.ACTION_VIEW);
+                  				intent.setData(Uri.parse(url));
+								cordova.getActivity().startActivity(intent);
+							} catch (android.content.ActivityNotFoundException e) {
+								LOG.e(LOG_TAG, "Error with " + url + ": " + e.toString());
+							}
+                    	}
+	                })
+    	            .addOnFailureListener(e ->
+        	        {
+            	        //callbackContext.error("Failed to check Google Wallet API availability: " + e.getMessage());
+						// open in default browser
+						try {
+							Intent intent = new Intent(Intent.ACTION_VIEW);
+							intent.setData(Uri.parse(url));
+							cordova.getActivity().startActivity(intent);
+						} catch (android.content.ActivityNotFoundException err) {
+							LOG.e(LOG_TAG, "Error with " + url + ": " + err.toString());
+						}
+                	});
             }
             // If sms:5551212?body=This is the message
             else if (url.startsWith("sms:")) {
@@ -1627,7 +1670,8 @@ public class InAppBrowser extends CordovaPlugin {
             }
             // Test for whitelisted custom scheme names like mycoolapp:// or twitteroauthresponse:// (Twitter Oauth Response)
             else if (!url.startsWith("http:") && !url.startsWith("https:") && url.matches("^[A-Za-z0-9+.-]*://.*?$")) {
-                if (allowedSchemes == null) {
+	          	LOG.e(LOG_TAG, "Open URL '" + url + "' checking allowed schemes");
+	          	if (allowedSchemes == null) {
                     String allowed = preferences.getString("AllowedSchemes", null);
                     if(allowed != null) {
                         allowedSchemes = allowed.split(",");
