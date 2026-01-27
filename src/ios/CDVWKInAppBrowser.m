@@ -310,23 +310,23 @@ static CDVWKInAppBrowser* instance = nil;
     NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:url];
     NSURLSessionDataTask *task = [NSURLSession.sharedSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            NSLog(@"data: %@", [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
-            NSError *passKitError;
-            PKPass *pass = [[PKPass alloc] initWithData:data error:&passKitError];
-            if (passKitError) {
-                NSLog(@"Error: %@", passKitError.localizedDescription);
-                [self openInSystem:url]; // Fallback to opening in Safari in case the system can recover the pass or show an error
-                //[[UIApplication sharedApplication] openURL:url options:@{} completionHandler:^(BOOL success) {}];
-            } else if ([PKPassLibrary isPassLibraryAvailable]) {
-                PKAddPassesViewController *vc = [[PKAddPassesViewController alloc] initWithPass:pass];
-                [self.inAppBrowserViewController presentViewController:vc animated:YES completion: nil];
-            } else {
-                [self openInSystem:url]; // Fallback to opening in Safari in case the system can recover the pass or show an error
-                //[[UIApplication sharedApplication] openURL:url options:@{} completionHandler:^(BOOL success) {}];
-            }
+            [self addPassWithData:data originalURL:url];
         });
     }];
     [task resume];
+}
+
+- (void)addPassWithData:(NSData *)data originalURL:(NSURL *)url {
+    NSError *passKitError;
+    PKPass *pass = [[PKPass alloc] initWithData:data error:&passKitError];
+    if (passKitError) {
+		[self openInSystem:url];
+    } else if ([PKPassLibrary isPassLibraryAvailable]) {
+        PKAddPassesViewController *vc = [[PKAddPassesViewController alloc] initWithPass:pass];
+        [self.inAppBrowserViewController presentViewController:vc animated:YES completion:nil];
+    } else {
+        [self openInSystem:url];
+    }
 }
 
 - (void)loadAfterBeforeload:(CDVInvokedUrlCommand*)command

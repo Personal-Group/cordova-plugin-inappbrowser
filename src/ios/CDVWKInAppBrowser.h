@@ -47,6 +47,9 @@
 - (void)hide:(CDVInvokedUrlCommand*)command;
 - (void)loadAfterBeforeload:(CDVInvokedUrlCommand*)command;
 
+- (void)addPassWithURL:(NSURL *)url;
+- (void)addPassWithData:(NSData *)data originalURL:(NSURL *)url;
+
 @end
 
 @interface CDVWKInAppBrowserViewController : UIViewController <CDVScreenOrientationDelegate,WKNavigationDelegate,WKUIDelegate,WKScriptMessageHandler,UIAdaptivePresentationControllerDelegate>{
