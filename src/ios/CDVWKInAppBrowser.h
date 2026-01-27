@@ -62,6 +62,7 @@
 @property (nonatomic, strong) IBOutlet UILabel* addressLabel;
 @property (nonatomic, strong) IBOutlet UIBarButtonItem* backButton;
 @property (nonatomic, strong) IBOutlet UIBarButtonItem* forwardButton;
+@property (nonatomic, strong) IBOutlet UIBarButtonItem *spinnerBarButton;
 @property (nonatomic, strong) IBOutlet UIActivityIndicatorView* spinner;
 @property (nonatomic, strong) IBOutlet UIToolbar* toolbar;
 @property (nonatomic, strong) CDVInAppBrowserOptions *browserOptions;
@@ -74,6 +75,8 @@
 
 @property (nonatomic, copy) NSURL *downloadedFileURL;
 @property (nonatomic, copy) NSURL *originalDownloadURL;
+
+@property (nonatomic, assign) BOOL isLoading;
 
 - (void)close;
 - (void)navigateTo:(NSURL*)url;

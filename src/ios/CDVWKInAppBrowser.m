@@ -786,7 +786,7 @@ BOOL isExiting = FALSE;
     
     [self.webView.scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
     
-    self.spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
+    self.spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
     self.spinner.alpha = 1.000;
     self.spinner.autoresizesSubviews = YES;
     self.spinner.autoresizingMask = (UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleRightMargin);
@@ -808,12 +808,7 @@ BOOL isExiting = FALSE;
     self.closeButton.title = self.browserOptions.closebuttoncaption ? self.browserOptions.closebuttoncaption : @"Close";
     self.closeButton.tintColor = self.browserOptions.closebuttoncolor ? [self colorFromHexString:self.browserOptions.closebuttoncolor] : [UIColor blackColor];
     self.closeButton.enabled = YES;
-    
-    UIBarButtonItem *flexibleSpaceButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
-    
-    UIBarButtonItem *fixedSpaceButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFixedSpace target:nil action:nil];
-    fixedSpaceButton.width = 20;
-    
+        
     float toolbarY = toolbarIsAtBottom ? self.view.bounds.size.height - TOOLBAR_HEIGHT : 0.0;
     CGRect toolbarFrame = CGRectMake(0.0, toolbarY, self.view.bounds.size.width, TOOLBAR_HEIGHT);
     
@@ -835,7 +830,8 @@ BOOL isExiting = FALSE;
     if (!_browserOptions.toolbartranslucent) { // Set toolbar translucent to no if user sets it in options
       self.toolbar.translucent = NO;
     }
-    
+    self.toolbar.backgroundColor = _browserOptions.toolbarcolor ? [self colorFromHexString:_browserOptions.toolbarcolor] : [UIColor whiteColor];
+
     CGFloat labelInset = 5.0;
     float locationBarY = toolbarIsAtBottom ? self.view.bounds.size.height - FOOTER_HEIGHT : self.view.bounds.size.height - LOCATIONBAR_HEIGHT;
     
@@ -882,20 +878,16 @@ BOOL isExiting = FALSE;
         self.backButton.tintColor = [self colorFromHexString:_browserOptions.navigationbuttoncolor];
     }
     
-    UIBarButtonItem *spinnerBarButton = [[UIBarButtonItem alloc] initWithCustomView:self.spinner];
+    self.spinnerBarButton = [[UIBarButtonItem alloc] initWithCustomView:self.spinner];
     
-    // Filter out Navigation Buttons if user requests so
-    if (_browserOptions.hidenavigationbuttons) {
-        if (_browserOptions.lefttoright) {
-            [self.toolbar setItems:@[spinnerBarButton, flexibleSpaceButton, self.closeButton]];
-        } else {
-            [self.toolbar setItems:@[self.closeButton, flexibleSpaceButton, spinnerBarButton]];
-        }
-    } else if (_browserOptions.lefttoright) {
-        [self.toolbar setItems:@[self.backButton, fixedSpaceButton, self.forwardButton, flexibleSpaceButton, spinnerBarButton, self.closeButton]];
-    } else {
-        [self.toolbar setItems:@[self.closeButton, flexibleSpaceButton, spinnerBarButton, self.backButton, fixedSpaceButton, self.forwardButton]];
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 260000
+    if (@available(iOS 26.0, *)) {
+        self.closeButton.sharesBackground = NO;
+        self.spinnerBarButton.sharesBackground = NO;
     }
+#endif
+    
+    [self.toolbar setItems:[self toolbarItems]];
     
     self.view.backgroundColor = [UIColor clearColor];
     [self.view addSubview:self.toolbar];
@@ -1075,6 +1067,18 @@ BOOL isExiting = FALSE;
     return NO;
 }
 
+- (void)setIsLoading:(BOOL)isLoading {
+	_isLoading = isLoading;
+	
+	if (isLoading) {
+		[self.spinner startAnimating];
+	} else {
+		[self.spinner stopAnimating];
+	}
+	
+    [self.toolbar setItems:[self toolbarItems] animated:YES];	
+}
+
 - (void)close
 {
     self.currentURL = nil;
@@ -1145,6 +1149,38 @@ BOOL isExiting = FALSE;
     self.webView.frame = viewBounds;
 }
 
+- (NSArray *)toolbarItems {
+    UIBarButtonItem *flexibleSpaceButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
+	
+    if (_browserOptions.hidenavigationbuttons) {
+        if (_browserOptions.lefttoright) {
+            if (self.isLoading) {
+				return @[self.spinnerBarButton, flexibleSpaceButton, self.closeButton];
+			} else {
+				return @[flexibleSpaceButton, self.closeButton];
+			}
+        } else {
+            if (self.isLoading) {
+	            return @[self.closeButton, flexibleSpaceButton, self.spinnerBarButton];
+	        } else {
+	            return @[self.closeButton, flexibleSpaceButton];	        
+	        }
+        }
+    } else if (_browserOptions.lefttoright) {
+    	if (self.isLoading) {
+	        return @[self.backButton, self.forwardButton, flexibleSpaceButton, self.spinnerBarButton, self.closeButton];
+	    } else {
+	        return @[self.backButton, self.forwardButton, flexibleSpaceButton, self.closeButton];
+		}
+    } else {
+        if (self.isLoading) {
+			return @[self.closeButton, flexibleSpaceButton, self.spinnerBarButton, self.backButton, self.forwardButton];
+        } else {
+	        return @[self.closeButton, flexibleSpaceButton, self.backButton, self.forwardButton];
+        }
+    }
+}
+
 // Helper function to convert hex color string to UIColor
 // Assumes input like "#00FF00" (#RRGGBB).
 // Taken from https://stackoverflow.com/questions/1560081/how-can-i-create-a-uicolor-from-a-hex-string
@@ -1167,10 +1203,7 @@ BOOL isExiting = FALSE;
     self.forwardButton.enabled = theWebView.canGoForward;
     
     NSLog(_browserOptions.hidespinner ? @"Yes" : @"No");
-    if(!_browserOptions.hidespinner) {
-        [self.spinner startAnimating];
-    }
-    
+	self.isLoading = YES;    
     return [self.navigationDelegate didStartProvisionalNavigation:theWebView];
 }
 
@@ -1201,7 +1234,7 @@ BOOL isExiting = FALSE;
     self.forwardButton.enabled = theWebView.canGoForward;
     theWebView.scrollView.contentInset = UIEdgeInsetsZero;
     
-    [self.spinner stopAnimating];
+	self.isLoading = NO;
     
     [self.navigationDelegate didFinishNavigation:theWebView];
 }
@@ -1212,8 +1245,8 @@ BOOL isExiting = FALSE;
     
     self.backButton.enabled = theWebView.canGoBack;
     self.forwardButton.enabled = theWebView.canGoForward;
-    [self.spinner stopAnimating];
-    
+	self.isLoading = NO;
+	    
     self.addressLabel.text = NSLocalizedString(@"Load Error", nil);
     
     [self.navigationDelegate webView:theWebView didFailNavigation:error];
@@ -1256,7 +1289,7 @@ BOOL isExiting = FALSE;
 }
 
 - (void)downloadDidFinish:(WKDownload *)download {
-    [self.spinner stopAnimating];
+	self.isLoading = NO;
     if ([self.downloadedFileURL.pathExtension isEqualToString:@"pkpass"]) {
         NSData *data = [NSData dataWithContentsOfURL:self.downloadedFileURL];
         [self.navigationDelegate addPassWithData:data originalURL:self.originalDownloadURL];
