@@ -462,7 +462,6 @@ static CDVWKInAppBrowser* instance = nil;
  * other code execution is possible.
  */
 - (void)webView:(WKWebView *)theWebView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
-    
     NSURL* url = navigationAction.request.URL;
     NSURL* mainDocumentURL = navigationAction.request.mainDocumentURL;
     BOOL isTopLevelNavigation = [url isEqual:mainDocumentURL];
@@ -502,6 +501,11 @@ static CDVWKInAppBrowser* instance = nil;
         [pluginResult setKeepCallback:[NSNumber numberWithBool:YES]];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:self.callbackId];
     }
+    
+    if (navigationAction.shouldPerformDownload) {
+        decisionHandler(WKNavigationActionPolicyDownload);
+        return;
+	}
     
     //if is an app store, tel, sms, mailto or geo link, let the system handle it, otherwise it fails to load it
     NSArray *allowedSchemes = @[@"itms-appss", @"itms-apps", @"tel", @"sms", @"mailto", @"geo"];
@@ -701,9 +705,7 @@ BOOL isExiting = FALSE;
     BOOL toolbarIsAtBottom = ![self.browserOptions.toolbarposition isEqualToString:kInAppBrowserToolbarBarPositionTop];
     webViewBounds.size.height -= self.browserOptions.location ? FOOTER_HEIGHT : TOOLBAR_HEIGHT;
     WKUserContentController* userContentController = [[WKUserContentController alloc] init];
-    
-    WKWebViewConfiguration *configuration = webViewConfiguration;
-    
+        
     if (!webViewConfiguration) {
         webViewConfiguration = [[WKWebViewConfiguration alloc] init];
 
@@ -1225,6 +1227,48 @@ BOOL isExiting = FALSE;
 - (void)webView:(WKWebView*)theWebView didFailProvisionalNavigation:(null_unspecified WKNavigation *)navigation withError:(nonnull NSError *)error
 {
     [self webView:theWebView failedNavigation:@"didFailProvisionalNavigation" withError:error];
+}
+
+- (void)webView:(WKWebView *)webView decidePolicyForNavigationResponse:(WKNavigationResponse *)navigationResponse decisionHandler:(void (^)(WKNavigationResponsePolicy))decisionHandler {
+    if (navigationResponse.canShowMIMEType) {
+        decisionHandler(WKNavigationResponsePolicyAllow);
+    } else {
+        decisionHandler(WKNavigationResponsePolicyDownload);
+    }
+}
+
+- (void)webView:(WKWebView *)webView navigationAction:(WKNavigationAction *)navigationAction didBecomeDownload:(WKDownload *)download {
+    download.delegate = self;
+}
+
+- (void)webView:(WKWebView *)webView navigationResponse:(WKNavigationResponse *)navigationResponse didBecomeDownload:(WKDownload *)download {
+    download.delegate = self;
+}
+
+#pragma mark WKDownloadDelegate delegate
+
+- (void)download:(WKDownload *)download decideDestinationUsingResponse:(NSURLResponse *)response suggestedFilename:(NSString *)suggestedFilename completionHandler:(void (^)(NSURL * _Nullable))completionHandler {
+    NSURL *url = [[NSURL fileURLWithPath:[NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) firstObject]] URLByAppendingPathComponent:suggestedFilename];
+    [NSFileManager.defaultManager removeItemAtURL:url error:nil];
+    self.downloadedFileURL = url;
+    self.originalDownloadURL = response.URL;
+    completionHandler(url);
+}
+
+- (void)downloadDidFinish:(WKDownload *)download {
+    [self.spinner stopAnimating];
+    if ([self.downloadedFileURL.pathExtension isEqualToString:@"pkpass"]) {
+        NSData *data = [NSData dataWithContentsOfURL:self.downloadedFileURL];
+        [self.navigationDelegate addPassWithData:data originalURL:self.originalDownloadURL];
+    } else {
+        UIActivityViewController *shareSheet = [[UIActivityViewController alloc] initWithActivityItems:@[self.downloadedFileURL] applicationActivities:nil];
+        shareSheet.completionWithItemsHandler = ^(UIActivityType  _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable activityError) {
+            [NSFileManager.defaultManager removeItemAtURL:self.downloadedFileURL error:nil];
+            self.downloadedFileURL = nil;
+            self.originalDownloadURL = nil;
+        };
+        [self presentViewController:shareSheet animated:true completion:nil];
+    }
 }
 
 #pragma mark WKUIDelegate

@@ -52,7 +52,7 @@
 
 @end
 
-@interface CDVWKInAppBrowserViewController : UIViewController <CDVScreenOrientationDelegate,WKNavigationDelegate,WKUIDelegate,WKScriptMessageHandler,UIAdaptivePresentationControllerDelegate>{
+@interface CDVWKInAppBrowserViewController : UIViewController <CDVScreenOrientationDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKDownloadDelegate, UIAdaptivePresentationControllerDelegate>{
     @private
 }
 
@@ -71,6 +71,9 @@
 @property (nonatomic, weak) id <CDVScreenOrientationDelegate> orientationDelegate;
 @property (nonatomic, weak) CDVWKInAppBrowser* navigationDelegate;
 @property (nonatomic) NSURL* currentURL;
+
+@property (nonatomic, copy) NSURL *downloadedFileURL;
+@property (nonatomic, copy) NSURL *originalDownloadURL;
 
 - (void)close;
 - (void)navigateTo:(NSURL*)url;
